@@ -2,64 +2,42 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"log"
-	"os"
-	"strings"
 	"time"
 
-	"github.com/hashicorp/memberlist"
-	"github.com/pborman/uuid"
+	"github.com/jakubjastrabik/Ha-cert-manager-for-traefik/cluster"
 )
 
 var (
-	members = flag.String("members", "", "comma seperated list of members")
+	members  = flag.String("members", "", "comma seperated list of members")
+	nodePort = flag.Int("nodePort", 7900, "Port to be use for connection")
+	location = flag.String("nodeLocation", "", "Node location")
+	zone     = flag.String("nodeZone", "", "Node zone name")
+	nodeID   = flag.Int("nodeID", 0, "Node ID")
+	weight   = flag.Int("nodeWeight", 0, "Node weight")
 )
 
 func init() {
 	flag.Parse()
 }
 
-func start(m *memberlist.Memberlist) error {
-	if len(*members) > 0 {
-		parts := strings.Split(*members, ",")
-		_, err := m.Join(parts)
-		if err != nil {
-			return err
-		}
-	}
-
-	node := m.LocalNode()
-	fmt.Printf("Local member %s:%d\n", node.Addr, node.Port)
-
-	// Ask for members of the cluster
-	for _, member := range m.Members() {
-		fmt.Printf("Member: %s %s\n", member.Name, member.Addr)
-	}
-
-	return nil
-}
-
 func main() {
-	hostname, _ := os.Hostname()
 
-	c := memberlist.DefaultLocalConfig()
-	c.BindPort = 7902
-	c.AdvertisePort = 7902
-	c.Name = hostname + "-" + uuid.NewUUID().String()
-
-	m, err := memberlist.Create(c)
-	if err != nil {
-		fmt.Println(err)
+	clusterConf := cluster.Cluster{
+		Members:  *members,
+		NodePort: *nodePort,
+		MyData: []cluster.MetaData{
+			{
+				Location: *location,
+				Zone:     *zone,
+				ShardID:  *nodeID,
+				Weight:   *weight,
+			},
+		},
 	}
 
-	for {
-		if err := start(m); err != nil {
-			fmt.Println(err)
-		}
+	cluster.InitCluster(clusterConf)
 
-		log.Printf("wait 10 sec")
+	for i := 3; i > 0; i-- {
 		time.Sleep(10 * time.Second)
 	}
-
 }
