@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"main.go/backup"
 
 	"github.com/jakubjastrabik/treafikCertKVstore/consul"
 	"github.com/jakubjastrabik/treafikCertKVstore/logging"
@@ -20,6 +21,7 @@ import (
 
 var (
 	// Logg global log file
+	BS                    *backup.Backup
 	Logg                  *logging.Logging
 	members               = flag.String("members", "", "comma seperated list of members")
 	httpPort              = flag.String("httpPort", "7900", "Port to be use for connection")
@@ -29,6 +31,8 @@ var (
 	path                  = flag.String("logFilePath", "/var/log/hacert.log", "Logi file path with name")
 	logLevel              = flag.String("logLevel", "DEBUG", "DEBUG, WARN, INFO, ERROR")
 	appName               = flag.String("appName", "traefikCertKVStore", "Aplication tag in log")
+	backupCount           = flag.Int("backupCount", 3, "Count of rotated backup version")
+	waitAfterStart        = flag.Int("wait", 5, "Waiting to start to do tasks after started in seconds")
 
 	watchError = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "hacert_watcher_error",
@@ -113,6 +117,9 @@ func checkFileChange() {
 					}
 					consul.PutToKV(*consulKey, string(content))
 
+					// Backup File after update traefik cert local file
+					BS.BackupRotate()
+
 					s := strings.Split(*members, ",")
 					for i := range s {
 						resp, err := http.Get("http://" + s[i] + ":" + *httpPort + "/update")
@@ -170,7 +177,6 @@ func saveData() {
 		traefikReload.Inc()
 		Logg.LoggWrite("DEBUG", "Systemd reload traefik service", err)
 	}
-	return
 }
 
 func httpServer() {
@@ -185,14 +191,16 @@ func httpServer() {
 	} else {
 		Logg.LoggWrite("DEBUG", "Web server listening", err)
 	}
-
 }
 
 func main() {
 	// Get data from consul after start app
 	Logg = logging.NewLogging(*path, *logLevel, *appName)
+	BS = backup.NewBackup(*traefikCertLocalStore, *backupCount)
+
 	Logg.LoggWrite("DEBUG", "Wait after start", nil)
-	time.Sleep(1 * time.Second)
+
+	time.Sleep(time.Duration(*waitAfterStart) * time.Second)
 
 	saveData()
 	go httpServer()
@@ -205,3 +213,5 @@ func handleUpdate(w http.ResponseWriter, r *http.Request) {
 	certUpdate.Inc()
 	saveData()
 }
+
+// TODO - Add file size watcher
