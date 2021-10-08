@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -11,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"main.go/backup"
 
 	"github.com/jakubjastrabik/treafikCertKVstore/consul"
 	"github.com/jakubjastrabik/treafikCertKVstore/logging"
@@ -20,6 +24,7 @@ import (
 
 var (
 	// Logg global log file
+	BS                    *backup.Backup
 	Logg                  *logging.Logging
 	members               = flag.String("members", "", "comma seperated list of members")
 	httpPort              = flag.String("httpPort", "7900", "Port to be use for connection")
@@ -29,6 +34,9 @@ var (
 	path                  = flag.String("logFilePath", "/var/log/hacert.log", "Logi file path with name")
 	logLevel              = flag.String("logLevel", "DEBUG", "DEBUG, WARN, INFO, ERROR")
 	appName               = flag.String("appName", "traefikCertKVStore", "Aplication tag in log")
+	backupCount           = flag.Int("backupCount", 3, "Count of rotated backup version")
+	waitAfterStart        = flag.Int("wait", 5, "Waiting to start to do tasks after started in seconds")
+	allowTraefikReload    = flag.Bool("ATReload", true, "Allow reload traefik after cert update")
 
 	watchError = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "hacert_watcher_error",
@@ -105,27 +113,61 @@ func checkFileChange() {
 				}
 				done <- true
 				if event.Op&fsnotify.Rename == fsnotify.Rename {
+					// In case the file was changed
 					time.Sleep(time.Millisecond * 100)
-					content, err := ioutil.ReadFile(*traefikCertLocalStore)
-					if err != nil {
-						fileReadError.Inc()
-						Logg.LoggWrite("ERROR", "Error read file ", err)
-					}
-					consul.PutToKV(*consulKey, string(content))
 
-					s := strings.Split(*members, ",")
-					for i := range s {
-						resp, err := http.Get("http://" + s[i] + ":" + *httpPort + "/update")
-						httpUpdate.Inc()
-						if err != nil {
-							httpError.Inc()
-							Logg.LoggWrite("ERROR", "Error handle http request ", err)
-						}
-						defer resp.Body.Close()
-					}
+					f, err := os.Open(*traefikCertLocalStore)
 					if err != nil {
-						fileChange.Inc()
-						Logg.LoggWrite("INFO", "File was change ", err)
+						log.Fatal(err)
+					}
+					defer f.Close()
+
+					bb, err := ioutil.ReadAll(f)
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					doc := make(map[string]map[string]interface{})
+					defer delete(doc, "globalResolver")
+
+					if err := json.Unmarshal(bb, &doc); err != nil {
+						log.Fatal(err)
+					}
+
+					// check if the file contain some certificates
+					if doc["globalResolver"]["Certificates"] != nil {
+
+						// In case the file contain certificates
+						content, err := ioutil.ReadFile(*traefikCertLocalStore)
+						if err != nil {
+							fileReadError.Inc()
+							Logg.LoggWrite("ERROR", "Error read file ", err)
+						}
+						// saving new copy of cert file to consul storage
+						consul.PutToKV(*consulKey, string(content))
+
+						// Backuping File after update traefik cert local file
+						BS.BackupRotate()
+
+						// Notifi all members in cluster about cert update
+						s := strings.Split(*members, ",")
+						for i := range s {
+							resp, err := http.Get("http://" + s[i] + ":" + *httpPort + "/update")
+							httpUpdate.Inc()
+							if err != nil {
+								httpError.Inc()
+								Logg.LoggWrite("ERROR", "Error handle http request ", err)
+							}
+							defer resp.Body.Close()
+						}
+						if err != nil {
+							fileChange.Inc()
+							Logg.LoggWrite("INFO", "File was change ", err)
+						}
+					} else {
+						// In case the file does not contain any certificates
+						certUpdate.Inc()
+						saveData()
 					}
 				}
 			case err, ok := <-watcher.Errors:
@@ -150,8 +192,10 @@ func checkFileChange() {
 }
 
 func saveData() {
+	// Get copy of cert file from consul KV store
 	d1 := []byte(consul.GetFromKV(*consulKey))
 
+	// Write data to local cert file store
 	err := ioutil.WriteFile(*traefikCertLocalStore, d1, 0644)
 	if err != nil {
 		fileWriteError.Inc()
@@ -160,17 +204,20 @@ func saveData() {
 		fileWrite.Inc()
 		Logg.LoggWrite("DEBUG", "Write data to acme.json", err)
 	}
-	cmd := "systemctl reload traefik.service"
-	_, err = exec.Command("bash", "-c", cmd).CombinedOutput()
 
-	if err != nil {
-		traefikReloadError.Inc()
-		Logg.LoggWrite("ERROR", "Systemd faild reload traefik service", err)
-	} else {
-		traefikReload.Inc()
-		Logg.LoggWrite("DEBUG", "Systemd reload traefik service", err)
+	if *allowTraefikReload {
+		// If reload traefik are alowed
+		cmd := "systemctl reload traefik.service"
+		_, err = exec.Command("bash", "-c", cmd).CombinedOutput()
+
+		if err != nil {
+			traefikReloadError.Inc()
+			Logg.LoggWrite("ERROR", "Systemd faild reload traefik service", err)
+		} else {
+			traefikReload.Inc()
+			Logg.LoggWrite("DEBUG", "Systemd reload traefik service", err)
+		}
 	}
-	return
 }
 
 func httpServer() {
@@ -185,14 +232,16 @@ func httpServer() {
 	} else {
 		Logg.LoggWrite("DEBUG", "Web server listening", err)
 	}
-
 }
 
 func main() {
 	// Get data from consul after start app
 	Logg = logging.NewLogging(*path, *logLevel, *appName)
+	BS = backup.NewBackup(*traefikCertLocalStore, *backupCount)
+
 	Logg.LoggWrite("DEBUG", "Wait after start", nil)
-	time.Sleep(1 * time.Second)
+
+	time.Sleep(time.Duration(*waitAfterStart) * time.Second)
 
 	saveData()
 	go httpServer()
