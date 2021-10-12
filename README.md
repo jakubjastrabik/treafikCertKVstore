@@ -33,5 +33,5 @@ The app can be used to backup and replication the acme file across multiple trae
 ``` Bash
 git clone https://github.com/jakubjastrabik/treafikCertKVstore.git
 go get
-go build -o traefikCertKVStore GOOS=linux GOARCH=amd64
+GOOS=linux GOARCH=amd64 go build -o traefikCertKVStore 
 ```
