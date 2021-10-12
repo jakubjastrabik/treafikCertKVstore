@@ -29,6 +29,10 @@ The app can be used to backup and replication the acme file across multiple trae
 
 | metricsPath           |	URL path for surfacing collected metrics              | /metrics	             |
 | --                    | --                                                    | --                     |
+
+## Grafana
+Grafana ID: 15100 https://grafana.com/grafana/dashboards/15100
+
 ## Usage
 
 ### From Binary
