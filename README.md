@@ -40,7 +40,7 @@ The app can be used to backup and replication the acme file across multiple trae
 
 ``` bash
 docker pull ghcr.io/jakubjastrabik/treafikcertkvstore:latest
-docker run -p 7900:7900 --name treafikcertkvstore ghcr.io/jakubjastrabik/treafikcertkvstore --env-file=.env
+docker run -p 7900:7900 --name treafikcertkvstore --env-file=.env ghcr.io/jakubjastrabik/treafikcertkvstore 
 ```
 
 ### Build from source
