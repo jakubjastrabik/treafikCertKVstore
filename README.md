@@ -3,7 +3,7 @@ The app can be used to backup and replication the acme file across multiple trae
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/jakubjastrabik/treafikCertKVstore)](https://goreportcard.com/report/github.com/jakubjastrabik/treafikCertKVstore)
 [![goreleaser](https://github.com/jakubjastrabik/treafikCertKVstore/actions/workflows/goreleaser.yml/badge.svg)](https://github.com/jakubjastrabik/treafikCertKVstore/actions/workflows/goreleaser.yml)
-[![Docker Image CI](https://github.com/jakubjastrabik/treafikCertKVstore/actions/workflows/docker-image.yml/badge.svg)](https://github.com/jakubjastrabik/treafikCertKVstore/actions/workflows/docker-image.yml)
+[![Docker](https://github.com/jakubjastrabik/treafikCertKVstore/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/jakubjastrabik/treafikCertKVstore/actions/workflows/docker-publish.yml)
 
 <p align="center">
   <img src="[http://some_place.com/image.png](https://github.com/jakubjastrabik/treafikCertKVstore/tree/master/docu/images/basic-topo.svg)" />
