@@ -25,10 +25,22 @@ The app can be used to backup and replication the acme file across multiple trae
 | backupCount           | Count of rotated backup version                       | 3                      |
 | waitAfterStart        | Waiting to start to do tasks after started in seconds | 5                      |
 
+## Prometheus metrics
+
+| metricsPath           |	URL path for surfacing collected metrics              | /metrics	             |
+
 ## Usage
+
+### From Binary
 
 ``` Bash
 ./traefikCertKVStore -members="192.168.1.10,192.168.1.11"
+```
+### From container
+
+``` bash
+docker pull ghcr.io/jakubjastrabik/treafikcertkvstore:latest
+docker run -p 7900:7900 --name treafikcertkvstore ghcr.io/jakubjastrabik/treafikcertkvstore --env-file=.env
 ```
 
 ### Build from source
