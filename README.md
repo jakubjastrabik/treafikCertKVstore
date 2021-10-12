@@ -28,7 +28,7 @@ The app can be used to backup and replication the acme file across multiple trae
 ## Prometheus metrics
 
 | metricsPath           |	URL path for surfacing collected metrics              | /metrics	             |
-
+| --                    | --                                                    | --                     |
 ## Usage
 
 ### From Binary
