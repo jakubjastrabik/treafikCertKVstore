@@ -14,9 +14,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"main.go/backup"
 
 	"github.com/jakubjastrabik/treafikCertKVstore/consul"
+	"github.com/jakubjastrabik/treafikCertKVstore/fbackup"
 	"github.com/jakubjastrabik/treafikCertKVstore/logging"
 
 	"github.com/fsnotify/fsnotify"
@@ -24,7 +24,7 @@ import (
 
 var (
 	// Logg global log file
-	BS                    *backup.Backup
+	BS                    *fbackup.Backup
 	Logg                  *logging.Logging
 	members               = flag.String("members", "", "comma seperated list of members")
 	httpPort              = flag.String("httpPort", "7900", "Port to be use for connection")
@@ -237,7 +237,7 @@ func httpServer() {
 func main() {
 	// Get data from consul after start app
 	Logg = logging.NewLogging(*path, *logLevel, *appName)
-	BS = backup.NewBackup(*traefikCertLocalStore, *backupCount)
+	BS = fbackup.NewBackup(*traefikCertLocalStore, *backupCount)
 
 	Logg.LoggWrite("DEBUG", "Wait after start", nil)
 
